@@ -35,14 +35,25 @@ div[data-testid="metric-container"] [data-testid="stMetricValue"]{font-family:'S
 """, unsafe_allow_html=True)
 
 COLORS = ["#f59e0b","#3b82f6","#22c55e","#ef4444","#a78bfa","#38bdf8","#fb923c","#34d399","#f472b6","#facc15","#e879f9","#4ade80"]
-BASE_LAYOUT = dict(
-    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(10,16,30,0.5)",
-    font=dict(color="#6a7e9c", family="DM Sans", size=11),
-    margin=dict(t=30,b=30,l=10,r=10),
-    legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(size=10)),
-)
-
-AXIS_STYLE = dict(gridcolor="#14213a", linecolor="#14213a")
+def apply_layout(fig, height=300, legend_h=False, barmode=None, showlegend=True, coloraxis=False):
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(10,16,30,0.5)",
+        font=dict(color="#6a7e9c", family="DM Sans", size=11),
+        margin=dict(t=30,b=30,l=10,r=10),
+        legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(size=10),
+                    orientation="h" if legend_h else "v",
+                    y=1.05 if legend_h else 1),
+        height=height,
+        showlegend=showlegend,
+        xaxis=dict(gridcolor="#14213a", linecolor="#14213a"),
+        yaxis=dict(gridcolor="#14213a", linecolor="#14213a"),
+    )
+    if barmode:
+        fig.update_layout(barmode=barmode)
+    if coloraxis:
+        fig.update_layout(coloraxis_showscale=False)
+    return fig
 
 @st.cache_data
 def load_all(file):
@@ -198,7 +209,7 @@ if page == "Portfolio Dashboard":
         fig=go.Figure()
         fig.add_trace(go.Bar(x=m['Lbl'],y=m['Billed_Units']/1e6,name='Billed Units',marker_color='#3b82f6',opacity=0.85))
         fig.add_trace(go.Scatter(x=m['Lbl'],y=m['Prev']/1e6,name='Prev Year',line=dict(color='#f59e0b',width=2),mode='lines+markers',marker=dict(size=4)))
-        fig.update_layout(**BASE_LAYOUT, xaxis=AXIS_STYLE, yaxis=AXIS_STYLE, height=290,legend=dict(orientation='h',y=1.05))
+        apply_layout(fig, height=290, legend_h=True)
         fig.update_yaxes(title_text="Million Units")
         st.plotly_chart(fig,use_container_width=True)
 
@@ -211,7 +222,7 @@ if page == "Portfolio Dashboard":
         fig2=go.Figure()
         fig2.add_trace(go.Bar(x=p['Lbl'],y=p['PLF'],name='PLF %',marker_color='#22c55e',opacity=0.85))
         fig2.add_trace(go.Scatter(x=p['Lbl'],y=p['Prev'],name='Prev Year PLF',line=dict(color='#f59e0b',width=2),mode='lines+markers',marker=dict(size=4)))
-        fig2.update_layout(**BASE_LAYOUT, xaxis=AXIS_STYLE, yaxis=AXIS_STYLE, height=290,legend=dict(orientation='h',y=1.05))
+        apply_layout(fig2, height=290, legend_h=True)
         fig2.update_yaxes(title_text="PLF %")
         st.plotly_chart(fig2,use_container_width=True)
 
@@ -224,7 +235,7 @@ if page == "Portfolio Dashboard":
         fig3.add_trace(go.Bar(x=fy3['FY'],y=fy3['Billed']/1e7,name='Total Billed',marker_color='#3b82f6'))
         fig3.add_trace(go.Bar(x=fy3['FY'],y=fy3['Realized']/1e7,name='Total Realized',marker_color='#22c55e'))
         fig3.add_trace(go.Bar(x=fy3['FY'],y=fy3['Recv']/1e7,name='Receivables',marker_color='#ef4444'))
-        fig3.update_layout(**BASE_LAYOUT, xaxis=AXIS_STYLE, yaxis=AXIS_STYLE, barmode='group',height=280,legend=dict(orientation='h',y=1.05))
+        apply_layout(fig3, height=280, legend_h=True, barmode="group")
         fig3.update_yaxes(title_text="₹ Crore")
         st.plotly_chart(fig3,use_container_width=True)
 
@@ -234,7 +245,7 @@ if page == "Portfolio Dashboard":
         fig4=go.Figure()
         if not qc.empty: fig4.add_trace(go.Bar(x=qc['Q'],y=qc['PLF'],name='Current PLF',marker_color='#3b82f6'))
         if not qp.empty: fig4.add_trace(go.Scatter(x=qp['Q'],y=qp['PLF'],name='Prev Year PLF',line=dict(color='#f59e0b',width=2.5),mode='lines+markers',marker=dict(size=6)))
-        fig4.update_layout(**BASE_LAYOUT, xaxis=AXIS_STYLE, yaxis=AXIS_STYLE, height=280,legend=dict(orientation='h',y=1.05))
+        apply_layout(fig4, height=280, legend_h=True)
         fig4.update_yaxes(title_text="PLF %")
         st.plotly_chart(fig4,use_container_width=True)
 
@@ -294,7 +305,7 @@ elif page == "BaseCase PLF":
     if not actual_fy.empty:
         fig_bc.add_trace(go.Scatter(x=actual_fy['FY'],y=actual_fy['PLF'],name='Actual PLF (SPV BaseCase)',
             mode='lines+markers',line=dict(color='#3b82f6',width=2.5),marker=dict(size=7,color='#3b82f6')))
-    fig_bc.update_layout(**BASE_LAYOUT, xaxis=AXIS_STYLE, yaxis=AXIS_STYLE, height=380,legend=dict(orientation='h',y=1.05,x=0))
+    apply_layout(fig_bc, height=380, legend_h=True)
     fig_bc.update_yaxes(title_text='PLF %',range=[0,base_plf*1.5])
     st.plotly_chart(fig_bc,use_container_width=True)
 
@@ -306,7 +317,7 @@ elif page == "BaseCase PLF":
     figm.add_trace(go.Bar(x=mp['Lbl'],y=mp['PLF'],marker_color='#22c55e',opacity=0.8,name='Actual PLF'))
     figm.add_hline(y=base_plf,line_dash='dot',line_color='#f59e0b',
         annotation_text=f'Base PLF: {base_plf:.1f}%',annotation_font_color='#f59e0b')
-    figm.update_layout(**BASE_LAYOUT, xaxis=AXIS_STYLE, yaxis=AXIS_STYLE, height=260)
+    apply_layout(figm, height=260, legend_h=True)
     figm.update_yaxes(title_text='PLF %')
     st.plotly_chart(figm,use_container_width=True)
 
@@ -365,7 +376,7 @@ elif page == "SPV Dashboard":
         fig=go.Figure()
         fig.add_trace(go.Bar(x=sm['Lbl'],y=sm['Billed_Units']/1e6,name='Billed Units',marker_color='#3b82f6',opacity=0.85))
         fig.add_trace(go.Scatter(x=sm['Lbl'],y=sm['Prev']/1e6,name='Prev Year',line=dict(color='#f59e0b',width=2),mode='lines+markers',marker=dict(size=4)))
-        fig.update_layout(**BASE_LAYOUT, xaxis=AXIS_STYLE, yaxis=AXIS_STYLE, height=280,legend=dict(orientation='h',y=1.05))
+        apply_layout(fig, height=280, legend_h=True)
         fig.update_yaxes(title_text="Million Units")
         st.plotly_chart(fig,use_container_width=True)
 
@@ -377,7 +388,7 @@ elif page == "SPV Dashboard":
         fig2=go.Figure()
         fig2.add_trace(go.Bar(x=sp['Lbl'],y=sp['PLF'],name='PLF %',marker_color='#22c55e',opacity=0.85))
         fig2.add_trace(go.Scatter(x=sp['Lbl'],y=sp['Prev'],name='Prev Year PLF',line=dict(color='#f59e0b',width=2),mode='lines+markers',marker=dict(size=4)))
-        fig2.update_layout(**BASE_LAYOUT, xaxis=AXIS_STYLE, yaxis=AXIS_STYLE, height=280,legend=dict(orientation='h',y=1.05))
+        apply_layout(fig2, height=280, legend_h=True)
         fig2.update_yaxes(title_text="PLF %")
         st.plotly_chart(fig2,use_container_width=True)
 
@@ -390,7 +401,7 @@ elif page == "SPV Dashboard":
         fig3.add_trace(go.Bar(x=fy3['FY'],y=fy3['Billed']/1e7,name='Total Billed',marker_color='#3b82f6'))
         fig3.add_trace(go.Bar(x=fy3['FY'],y=fy3['Realized']/1e7,name='Total Realized',marker_color='#22c55e'))
         fig3.add_trace(go.Bar(x=fy3['FY'],y=fy3['Recv']/1e7,name='Receivables',marker_color='#ef4444'))
-        fig3.update_layout(**BASE_LAYOUT, xaxis=AXIS_STYLE, yaxis=AXIS_STYLE, barmode='group',height=280,legend=dict(orientation='h',y=1.05))
+        apply_layout(fig3, height=280, legend_h=True, barmode="group")
         fig3.update_yaxes(title_text="₹ Crore")
         st.plotly_chart(fig3,use_container_width=True)
 
@@ -400,7 +411,7 @@ elif page == "SPV Dashboard":
         fig4=go.Figure()
         if not qc.empty: fig4.add_trace(go.Bar(x=qc['Q'],y=qc['PLF'],name='Current PLF',marker_color='#3b82f6'))
         if not qp.empty: fig4.add_trace(go.Scatter(x=qp['Q'],y=qp['PLF'],name='Prev Year PLF',line=dict(color='#f59e0b',width=2.5),mode='lines+markers',marker=dict(size=6)))
-        fig4.update_layout(**BASE_LAYOUT, xaxis=AXIS_STYLE, yaxis=AXIS_STYLE, height=280,legend=dict(orientation='h',y=1.05))
+        apply_layout(fig4, height=280, legend_h=True)
         fig4.update_yaxes(title_text="PLF %")
         st.plotly_chart(fig4,use_container_width=True)
 
@@ -427,7 +438,7 @@ elif page == "Portfolio Details":
         pie = pie[pie['DC_Capacity_KWp']>0]
         figp=px.pie(pie,values='DC_Capacity_KWp',names='SPV',color_discrete_sequence=COLORS,hole=0.28)
         figp.update_traces(textposition='outside',textfont_size=8,texttemplate='%{label}<br>%{value:,.0f} (%{percent:.1%})')
-        figp.update_layout(**BASE_LAYOUT, xaxis=AXIS_STYLE, yaxis=AXIS_STYLE, height=380,showlegend=False,margin=dict(t=10,b=10,l=10,r=10))
+        apply_layout(figp, height=380, legend_h=True)
         st.plotly_chart(figp,use_container_width=True)
 
     st.markdown("---")
@@ -437,7 +448,7 @@ elif page == "Portfolio Details":
         st.markdown("<div class='sec'>Capacity by Region</div>", unsafe_allow_html=True)
         reg=port.dropna(subset=['Region']).groupby('Region')['DC_Capacity_KWp'].sum().reset_index().sort_values('DC_Capacity_KWp')
         figr=px.bar(reg,x='DC_Capacity_KWp',y='Region',orientation='h',color='DC_Capacity_KWp',color_continuous_scale=[[0,'#0f2040'],[1,'#f59e0b']])
-        figr.update_layout(**BASE_LAYOUT, xaxis=AXIS_STYLE, yaxis=AXIS_STYLE, coloraxis_showscale=False,height=260)
+        apply_layout(figr, height=260, showlegend=True, coloraxis=True)
         figr.update_xaxes(title_text="Capacity (KWp)")
         st.plotly_chart(figr,use_container_width=True)
 
@@ -445,7 +456,7 @@ elif page == "Portfolio Details":
         st.markdown("<div class='sec'>Capacity by State</div>", unsafe_allow_html=True)
         st_df=port.dropna(subset=['State']).groupby('State')['DC_Capacity_KWp'].sum().reset_index().sort_values('DC_Capacity_KWp')
         figs=px.bar(st_df,x='DC_Capacity_KWp',y='State',orientation='h',color='DC_Capacity_KWp',color_continuous_scale=[[0,'#0f2040'],[1,'#3b82f6']])
-        figs.update_layout(**BASE_LAYOUT, xaxis=AXIS_STYLE, yaxis=AXIS_STYLE, coloraxis_showscale=False,height=260)
+        apply_layout(figs, height=260, showlegend=True, coloraxis=True)
         figs.update_xaxes(title_text="Capacity (KWp)")
         st.plotly_chart(figs,use_container_width=True)
 
@@ -453,7 +464,7 @@ elif page == "Portfolio Details":
     with c5:
         st.markdown("<div class='sec'>Tariff Distribution (₹/kWh)</div>", unsafe_allow_html=True)
         figt=px.histogram(port.dropna(subset=['Tariff']),x='Tariff',nbins=20,color_discrete_sequence=['#f59e0b'])
-        figt.update_layout(**BASE_LAYOUT, xaxis=AXIS_STYLE, yaxis=AXIS_STYLE, height=250)
+        apply_layout(figt, height=250, legend_h=True)
         figt.update_xaxes(title_text="Tariff (₹/kWh)")
         st.plotly_chart(figt,use_container_width=True)
 
@@ -462,7 +473,7 @@ elif page == "Portfolio Details":
         if 'Rating_Category' in port.columns:
             rat=port.dropna(subset=['Rating_Category']).groupby('Rating_Category')['DC_Capacity_KWp'].sum().reset_index()
             figrc=px.bar(rat,x='Rating_Category',y='DC_Capacity_KWp',color='Rating_Category',color_discrete_sequence=COLORS)
-            figrc.update_layout(**BASE_LAYOUT, xaxis=AXIS_STYLE, yaxis=AXIS_STYLE, showlegend=False,height=250)
+            apply_layout(figrc, height=250, legend_h=True)
             figrc.update_yaxes(title_text="Capacity (KWp)")
             st.plotly_chart(figrc,use_container_width=True)
 
