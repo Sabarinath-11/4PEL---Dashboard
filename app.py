@@ -99,14 +99,14 @@ with st.sidebar:
     if uploaded_file:
         st.markdown(f"<div style='background:#081a0e;border:1px solid #22c55e;border-radius:6px;padding:6px 10px;margin-top:4px;font-size:0.72rem;color:#22c55e;'>✓ {uploaded_file.name}</div>", unsafe_allow_html=True)
         st.markdown("---")
-        page = st.radio("", ["Portfolio Dashboard","BaseCase PLF","SPV Dashboard","Portfolio Details"], label_visibility="collapsed")
+        page = st.radio("", ["Portfolio Details","BaseCase PLF","Portfolio Dashboard","SPV Dashboard"], label_visibility="collapsed")
     else:
         page = "Portfolio Dashboard"
     st.markdown("---")
     st.markdown("<div style='font-size:0.62rem;color:#14213a;text-align:center;'>Fourth Partner Energy India<br>Automation · v2.0</div>", unsafe_allow_html=True)
 
 # ── HEADER ──
-pages_map = {"Portfolio Dashboard":"PORTFOLIO DASHBOARD","BaseCase PLF":"BASECASE PLF","SPV Dashboard":"SPV DASHBOARD","Portfolio Details":"PORTFOLIO DETAILS"}
+pages_map = {"Portfolio Details":"PORTFOLIO DETAILS","BaseCase PLF":"BASECASE PLF","Portfolio Dashboard":"PORTFOLIO DASHBOARD","SPV Dashboard":"SPV DASHBOARD"}
 st.markdown(f"""
 <div class='top-bar'>
   <div class='top-bar-logo'>FP</div>
@@ -249,6 +249,38 @@ if page == "Portfolio Dashboard":
         fig4.update_yaxes(title_text="PLF %")
         st.plotly_chart(fig4,use_container_width=True)
 
+
+    # ── CSV Download ──
+    st.markdown("---")
+    st.markdown("<div class='sec'>Download Data</div>", unsafe_allow_html=True)
+    dl1, dl2, dl3 = st.columns(3)
+    with dl1:
+        csv1 = df_fy.groupby('FY').agg(
+            Billed_Units=('Billed_Units','sum'),
+            PLF=('PLF','mean'),
+            Billed_Amount=('Billed_Amount','sum'),
+            Realized_Amount=('Realized_Amount','sum'),
+            Balance_Amount=('Balance_Amount','sum')
+        ).reset_index().round(2)
+        st.download_button("⬇️ FY Summary CSV", csv1.to_csv(index=False).encode('utf-8'), "fy_summary.csv", "text/csv", use_container_width=True)
+    with dl2:
+        csv2 = df.groupby(['FY','Invoice_Month2']).agg(
+            Billed_Units=('Billed_Units','sum'),
+            PLF=('PLF','mean'),
+            Billed_Amount=('Billed_Amount','sum')
+        ).reset_index().round(2)
+        csv2['Invoice_Month2'] = csv2['Invoice_Month2'].dt.strftime('%b-%Y')
+        st.download_button("⬇️ Monthly Data CSV", csv2.to_csv(index=False).encode('utf-8'), "monthly_data.csv", "text/csv", use_container_width=True)
+    with dl3:
+        csv3 = df.groupby('SPV').agg(
+            Billed_Units=('Billed_Units','sum'),
+            PLF=('PLF','mean'),
+            Billed_Amount=('Billed_Amount','sum'),
+            Realized_Amount=('Realized_Amount','sum'),
+            Balance_Amount=('Balance_Amount','sum')
+        ).reset_index().round(2)
+        st.download_button("⬇️ SPV Summary CSV", csv3.to_csv(index=False).encode('utf-8'), "spv_summary.csv", "text/csv", use_container_width=True)
+
 # ══════════════════════════════════════════════════════════════
 # PAGE 2 — BASECASE PLF
 # ══════════════════════════════════════════════════════════════
@@ -323,6 +355,20 @@ elif page == "BaseCase PLF":
 
     with st.expander("📋 Projected PLF Table"):
         st.dataframe(proj_df[['FY','Projected_PLF']].rename(columns={'Projected_PLF':'Projected PLF (%)'}).assign(**{'Projected PLF (%)': proj_df['Projected_PLF'].round(3)})[['FY','Projected PLF (%)']],use_container_width=True)
+
+
+    # ── CSV Download ──
+    st.markdown("---")
+    st.markdown("<div class='sec'>Download Data</div>", unsafe_allow_html=True)
+    dl1, dl2 = st.columns(2)
+    with dl1:
+        proj_csv = proj_df[['FY','Projected_PLF']].round(3)
+        proj_csv.columns = ['Financial Year', 'Projected PLF (%)']
+        st.download_button("⬇️ Projected PLF CSV", proj_csv.to_csv(index=False).encode('utf-8'), "projected_plf.csv", "text/csv", use_container_width=True)
+    with dl2:
+        act_csv = actual_fy.copy().round(3)
+        act_csv.columns = ['Financial Year', 'Actual PLF (%)']
+        st.download_button("⬇️ Actual PLF CSV", act_csv.to_csv(index=False).encode('utf-8'), "actual_plf.csv", "text/csv", use_container_width=True)
 
 # ══════════════════════════════════════════════════════════════
 # PAGE 3 — SPV DASHBOARD
@@ -415,6 +461,22 @@ elif page == "SPV Dashboard":
         fig4.update_yaxes(title_text="PLF %")
         st.plotly_chart(fig4,use_container_width=True)
 
+
+    # ── CSV Download ──
+    st.markdown("---")
+    st.markdown("<div class='sec'>Download Data</div>", unsafe_allow_html=True)
+    dl1, dl2 = st.columns(2)
+    with dl1:
+        spv_fy_csv = spv_fy[['Invoice_Month2','Billed_Units','PLF','Billed_Amount','Realized_Amount','Balance_Amount']].copy()
+        spv_fy_csv['Invoice_Month2'] = spv_fy_csv['Invoice_Month2'].dt.strftime('%b-%Y')
+        spv_fy_csv.columns = ['Month','Billed Units','PLF (%)','Billed Amount','Realized Amount','Balance Amount']
+        st.download_button("⬇️ SPV FY Data CSV", spv_fy_csv.to_csv(index=False).encode('utf-8'), f"{spv_sel}_fy_data.csv", "text/csv", use_container_width=True)
+    with dl2:
+        spv_all_csv = spv_df[['Invoice_Month2','FY','Billed_Units','PLF','Billed_Amount','Realized_Amount','Balance_Amount']].copy()
+        spv_all_csv['Invoice_Month2'] = spv_all_csv['Invoice_Month2'].dt.strftime('%b-%Y')
+        spv_all_csv.columns = ['Month','FY','Billed Units','PLF (%)','Billed Amount','Realized Amount','Balance Amount']
+        st.download_button("⬇️ SPV All Time CSV", spv_all_csv.to_csv(index=False).encode('utf-8'), f"{spv_sel}_all_data.csv", "text/csv", use_container_width=True)
+
 # ══════════════════════════════════════════════════════════════
 # PAGE 4 — PORTFOLIO DETAILS
 # ══════════════════════════════════════════════════════════════
@@ -481,3 +543,16 @@ elif page == "Portfolio Details":
         full=port[['SPV','DC_Capacity_KWp','Region','State','Tariff','Balance_PPA_Tenor','Rating_Category','COD']].copy()
         full.columns=['SPV','DC Capacity (KWp)','Region','State','Tariff (₹)','Balance PPA Tenor','Credit Rating','COD']
         st.dataframe(full,use_container_width=True)
+
+    # ── CSV Download ──
+    st.markdown("---")
+    st.markdown("<div class='sec'>Download Data</div>", unsafe_allow_html=True)
+    dl1, dl2 = st.columns(2)
+    with dl1:
+        port_csv = port[['SPV','DC_Capacity_KWp','Region','State','Tariff','Balance_PPA_Tenor','Rating_Category']].copy().round(2)
+        port_csv.columns = ['SPV','DC Capacity (KWp)','Region','State','Tariff','Balance PPA Tenor','Credit Rating']
+        st.download_button("⬇️ Portfolio Details CSV", port_csv.to_csv(index=False).encode('utf-8'), "portfolio_details.csv", "text/csv", use_container_width=True)
+    with dl2:
+        cap_csv = port.groupby('State')['DC_Capacity_KWp'].sum().reset_index().round(2)
+        cap_csv.columns = ['State','Total DC Capacity (KWp)']
+        st.download_button("⬇️ Capacity by State CSV", cap_csv.to_csv(index=False).encode('utf-8'), "capacity_by_state.csv", "text/csv", use_container_width=True)
