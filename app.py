@@ -21,15 +21,19 @@ html,body,[class*="css"]{font-family:'DM Sans',sans-serif;}
 .top-bar-sub{font-size:0.72rem;color:#3a4e6a;letter-spacing:2px;text-transform:uppercase;}
 .top-bar-page{margin-left:auto;font-family:'Syne',sans-serif;font-size:0.78rem;font-weight:700;color:#f59e0b;letter-spacing:2.5px;text-transform:uppercase;}
 .sec{font-family:'Syne',sans-serif;font-size:0.72rem;font-weight:700;color:#3a5070;text-transform:uppercase;letter-spacing:2.5px;border-left:3px solid #f59e0b;padding-left:10px;margin:18px 0 10px 0;}
-div[data-testid="metric-container"]{background:linear-gradient(145deg,#0f1a2e,#142040)!important;border:1px solid #1c2e4a!important;border-top:3px solid #f59e0b!important;border-radius:10px!important;padding:12px 14px!important;}
-div[data-testid="metric-container"] label{font-size:0.65rem!important;color:#3a5070!important;text-transform:uppercase!important;letter-spacing:1.5px!important;}
-div[data-testid="metric-container"] [data-testid="stMetricValue"]{font-family:'Syne',sans-serif!important;font-size:1.45rem!important;color:#fff!important;font-weight:700!important;}
+div[data-testid="metric-container"]{background:linear-gradient(145deg,#1a2a4a,#1e3255)!important;border:1px solid #2a4070!important;border-top:3px solid #f59e0b!important;border-radius:10px!important;padding:12px 14px!important;box-shadow:0 4px 15px rgba(0,0,0,0.3)!important;}
+div[data-testid="metric-container"] label{font-size:0.65rem!important;color:#8aabcf!important;text-transform:uppercase!important;letter-spacing:1.5px!important;}
+div[data-testid="metric-container"] [data-testid="stMetricValue"]{font-family:'Syne',sans-serif!important;font-size:1.55rem!important;color:#ffffff!important;font-weight:800!important;text-shadow:0 0 20px rgba(255,255,255,0.3)!important;}
 .stTabs [data-baseweb="tab-list"]{background:#0a101e!important;border-radius:8px!important;padding:4px!important;}
 .stTabs [data-baseweb="tab"]{font-family:'Syne',sans-serif!important;font-size:0.76rem!important;color:#3a5070!important;font-weight:700!important;border-radius:6px!important;}
 .stTabs [aria-selected="true"]{background:#142040!important;color:#f59e0b!important;border-bottom:2px solid #f59e0b!important;}
 .stSelectbox>div>div,.stMultiSelect>div>div{background:#0f1a2e!important;border-color:#1c2e4a!important;color:#8a9bbf!important;}
 .stSelectbox label,.stMultiSelect label,.stNumberInput label,.stSlider label{font-size:0.68rem!important;color:#3a5070!important;text-transform:uppercase!important;letter-spacing:1px!important;}
 .upload-box{background:linear-gradient(145deg,#0c1220,#0f1a2e);border:2px dashed #1c2e4a;border-radius:14px;padding:3rem 2rem;text-align:center;}
+[data-testid="stFileUploaderDropzoneInstructions"] div:last-child{display:none!important;}
+[data-testid="stFileUploaderDropzoneInstructions"] small{display:none!important;}
+section[data-testid="stFileUploaderDropzone"] small{display:none!important;}
+.stFileUploader small{display:none!important;}
 .spv-tag{display:inline-block;background:#0f1a2e;border:1px solid #1c2e4a;border-radius:20px;padding:3px 12px;font-size:0.7rem;color:#3a5070;margin:2px;font-weight:500;}
 </style>
 """, unsafe_allow_html=True)
@@ -125,6 +129,7 @@ def load_all(file):
 
     # ── Derived columns ──
     mis['PLF'] = (mis['Yield'] / 24 * 100).clip(0, 40)
+    mis['PLF'] = mis['PLF'].replace(0, np.nan)  # treat 0 yield as no data
     mis['Days'] = mis['Invoice_Month2'].dt.days_in_month.fillna(30)
 
     def fy(dt):
@@ -179,9 +184,9 @@ def load_all(file):
 
 # ── SIDEBAR ──
 with st.sidebar:
-    st.markdown("<div style='text-align:center;padding:1rem 0 0.5rem;'><div style='font-family:Syne,sans-serif;font-size:1rem;font-weight:800;color:#f59e0b;'>⚡ Fourth Partner Energy</div><div style='font-size:0.65rem;color:#1c2e4a;letter-spacing:2px;text-transform:uppercase;margin-top:2px;'>Portfolio Intelligence</div></div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center;padding:1rem 0 0.5rem;'><div style='font-family:Syne,sans-serif;font-size:1rem;font-weight:800;color:#f59e0b;'>⚡ Fourth Partner Energy</div></div>", unsafe_allow_html=True)
     st.markdown("---")
-    st.markdown("<div style='font-size:0.65rem;color:#2a3a52;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;'>📁 Upload Excel</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:0.75rem;color:#f59e0b;font-weight:600;letter-spacing:1px;margin-bottom:6px;'>📁 Upload File</div>", unsafe_allow_html=True)
     uploaded_file = st.file_uploader("", type=["xlsx","xls"], label_visibility="collapsed")
     if uploaded_file:
         st.markdown(f"<div style='background:#081a0e;border:1px solid #22c55e;border-radius:6px;padding:6px 10px;margin-top:4px;font-size:0.72rem;color:#22c55e;'>✓ {uploaded_file.name}</div>", unsafe_allow_html=True)
@@ -190,7 +195,7 @@ with st.sidebar:
     else:
         page = "Portfolio Dashboard"
     st.markdown("---")
-    st.markdown("<div style='font-size:0.62rem;color:#14213a;text-align:center;'>Fourth Partner Energy India<br>Automation · v2.0</div>", unsafe_allow_html=True)
+
 
 # ── HEADER ──
 pages_map = {"Portfolio Details":"PORTFOLIO DETAILS","BaseCase PLF":"BASECASE PLF","Portfolio Dashboard":"PORTFOLIO DASHBOARD","SPV Dashboard":"SPV DASHBOARD"}
@@ -262,7 +267,7 @@ if page == "Portfolio Dashboard":
     st.markdown("<div class='sec'>TTM Performance</div>", unsafe_allow_html=True)
     k1,k2,k3,k4,k5 = st.columns(5)
     k1.metric("TTM Billed Units",   f"{ttm['Billed_Units'].sum()/1e6:.2f}M")
-    k2.metric("TTM Weighted PLF",   f"{ttm['PLF'].mean():.2f}%")
+    k2.metric("TTM Weighted PLF",   f"{ttm['PLF'].mean():.2f}%" if not ttm['PLF'].isna().all() else 'N/A')
     k3.metric("TTM Billed Amount",  f"₹{ttm['Billed_Amount'].sum()/1e7:.2f}Cr")
     k4.metric("TTM Receivables",    f"₹{ttm['Balance_Amount'].sum()/1e7:.2f}Cr")
     k5.metric("TTM Realized",       f"₹{ttm['Realized_Amount'].sum()/1e7:.2f}Cr")
@@ -271,7 +276,7 @@ if page == "Portfolio Dashboard":
     st.markdown("<div class='sec'>Current Financial Year</div>", unsafe_allow_html=True)
     k1,k2,k3,k4 = st.columns(4)
     k1.metric("FY Billed Units",   f"{df_fy['Billed_Units'].sum()/1e6:.2f}M")
-    k2.metric("FY Weighted PLF",   f"{df_fy['PLF'].mean():.2f}%")
+    k2.metric("FY Weighted PLF",   f"{df_fy['PLF'].mean():.2f}%" if not df_fy['PLF'].isna().all() else 'N/A')
     k3.metric("FY Billed Amount",  f"₹{df_fy['Billed_Amount'].sum()/1e7:.2f}Cr")
     k4.metric("FY Receivables",    f"₹{df_fy['Balance_Amount'].sum()/1e7:.2f}Cr")
 
@@ -279,7 +284,7 @@ if page == "Portfolio Dashboard":
     st.markdown("<div class='sec'>Overall Performance</div>", unsafe_allow_html=True)
     k1,k2,k3,k4,k5 = st.columns(5)
     k1.metric("Overall Billed Units", f"{overall['Billed_Units'].sum()/1e6:.2f}M")
-    k2.metric("Overall PLF",          f"{overall['PLF'].mean():.2f}%")
+    k2.metric("Overall PLF",          f"{overall['PLF'].mean():.2f}%" if not overall['PLF'].isna().all() else 'N/A')
     k3.metric("Overall Billed Amt",   f"₹{overall['Billed_Amount'].sum()/1e7:.2f}Cr")
     k4.metric("Overall Receivables",  f"₹{overall['Balance_Amount'].sum()/1e7:.2f}Cr")
     k5.metric("Total Realized",       f"₹{overall['Realized_Amount'].sum()/1e7:.2f}Cr")
@@ -478,7 +483,7 @@ elif page == "SPV Dashboard":
     st.markdown("<div class='sec'>TTM Performance</div>", unsafe_allow_html=True)
     k1,k2,k3,k4 = st.columns(4)
     k1.metric("TTM Billed Units",  f"{ttm_s['Billed_Units'].sum()/1e6:.2f}M")
-    k2.metric("TTM Weighted PLF",  f"{ttm_s['PLF'].mean():.2f}%")
+    k2.metric("TTM Weighted PLF",  f"{ttm_s['PLF'].mean():.2f}%" if not ttm_s['PLF'].isna().all() else 'N/A')
     k3.metric("TTM Billed Amount", f"₹{ttm_s['Billed_Amount'].sum()/1e7:.2f}Cr")
     k4.metric("TTM Receivables",   f"₹{ttm_s['Balance_Amount'].sum()/1e7:.2f}Cr")
 
@@ -486,7 +491,7 @@ elif page == "SPV Dashboard":
     st.markdown("<div class='sec'>Selected FY Performance</div>", unsafe_allow_html=True)
     k1,k2,k3,k4 = st.columns(4)
     k1.metric("FY Billed Units",  f"{spv_fy['Billed_Units'].sum()/1e6:.2f}M")
-    k2.metric("FY PLF",           f"{spv_fy['PLF'].mean():.2f}%")
+    k2.metric("FY PLF",           f"{spv_fy['PLF'].mean():.2f}%" if not spv_fy['PLF'].isna().all() else 'N/A')
     k3.metric("FY Billed Amount", f"₹{spv_fy['Billed_Amount'].sum()/1e7:.2f}Cr")
     k4.metric("FY Receivables",   f"₹{spv_fy['Balance_Amount'].sum()/1e7:.2f}Cr")
 
@@ -494,7 +499,7 @@ elif page == "SPV Dashboard":
     st.markdown("<div class='sec'>Overall Performance</div>", unsafe_allow_html=True)
     k1,k2,k3,k4 = st.columns(4)
     k1.metric("Overall Billed Units", f"{overall['Billed_Units'].sum()/1e6:.2f}M")
-    k2.metric("Overall PLF",          f"{overall['PLF'].mean():.2f}%")
+    k2.metric("Overall PLF",          f"{overall['PLF'].mean():.2f}%" if not overall['PLF'].isna().all() else 'N/A')
     k3.metric("Overall Billed Amt",   f"₹{overall['Billed_Amount'].sum()/1e7:.2f}Cr")
     k4.metric("Overall Receivables",  f"₹{overall['Balance_Amount'].sum()/1e7:.2f}Cr")
 
