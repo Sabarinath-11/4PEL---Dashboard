@@ -56,39 +56,127 @@ def apply_layout(fig, height=300, legend_h=False, barmode=None, showlegend=True,
     return fig
 
 @st.cache_data
+def find_mis_sheet(xl):
+    for s in xl.sheet_names:
+        su = s.upper().replace(' ','')
+        if 'MIS' in su and 'ERP' in su:
+            return s
+    for s in xl.sheet_names:
+        if 'MIS' in s.upper():
+            return s
+    return xl.sheet_names[0]
+
+@st.cache_data
+def find_col(df, keywords_list):
+    """Find column by trying multiple keyword combos"""
+    for keywords in keywords_list:
+        for col in df.columns:
+            cl = col.lower().replace('\n',' ')
+            if all(k.lower() in cl for k in keywords):
+                return col
+    return None
+
+@st.cache_data
 def load_all(file):
-    raw = pd.read_excel(file, sheet_name='MIS- ERP', header=0)
-    mis = raw.iloc[2:].reset_index(drop=True)
-    mis.columns = ['Company','SPV','Invoice_Number','Invoice_Month','Invoice_Month2',
-                   'Invoice_Date','Due_Date','Offtaker','Plant_Capacity','Billed_Units',
-                   'Yield','Billed_Amount','Realized_Amount','Balance_Amount','Realized_Date','C1','C2','C3']
-    mis = mis[~mis['SPV'].astype(str).str.contains('SPV Identification',na=False)]
-    mis = mis[mis['SPV'].astype(str).str.len()>5].copy()
-    mis['Invoice_Month2'] = pd.to_datetime(mis['Invoice_Month2'], errors='coerce')
-    for c in ['Billed_Units','Billed_Amount','Realized_Amount','Balance_Amount','Plant_Capacity','Yield']:
-        mis[c] = pd.to_numeric(mis[c], errors='coerce')
-    mis['PLF'] = (mis['Yield']/24*100).clip(0,40)
+    xl = pd.ExcelFile(file)
+
+    # ── Find MIS sheet ──
+    mis_sheet = find_mis_sheet(xl)
+
+    # ── Find header row ──
+    raw = pd.read_excel(file, sheet_name=mis_sheet, header=None)
+    header_row = 0
+    for i in range(10):
+        row_vals = [str(v).strip().lower() for v in raw.iloc[i,:].tolist()]
+        if 'company' in row_vals and any('billed' in v for v in row_vals):
+            header_row = i
+            break
+
+    df = pd.read_excel(file, sheet_name=mis_sheet, header=header_row)
+    df.columns = [str(c).strip().replace('\n',' ') for c in df.columns]
+
+    # ── Smart column mapping ──
+    spv_col    = find_col(df, [['company name']]) or find_col(df, [['spv identification']]) or find_col(df, [['spv']])
+    month_col  = find_col(df, [['invoice month2']]) or find_col(df, [['month2']])
+    units_col  = find_col(df, [['billed units']])
+    yield_col  = find_col(df, [['yield']])
+    billed_col = find_col(df, [['billed amount']])
+    real_col   = find_col(df, [['realized amount']])
+    bal_col    = find_col(df, [['balance amount']]) or find_col(df, [['balance']])
+    cap_col    = find_col(df, [['plant capacity']])
+    oft_col    = find_col(df, [['offtaker name']]) or find_col(df, [['offtaker']]) or find_col(df, [['customer name']])
+
+    # ── Build clean MIS dataframe ──
+    mis = pd.DataFrame()
+    mis['SPV']             = df[spv_col].astype(str) if spv_col else 'Unknown'
+    mis['Invoice_Month2']  = pd.to_datetime(df[month_col], errors='coerce') if month_col else pd.NaT
+    mis['Billed_Units']    = pd.to_numeric(df[units_col], errors='coerce') if units_col else 0
+    mis['Yield']           = pd.to_numeric(df[yield_col], errors='coerce') if yield_col else 0
+    mis['Billed_Amount']   = pd.to_numeric(df[billed_col], errors='coerce') if billed_col else 0
+    mis['Realized_Amount'] = pd.to_numeric(df[real_col], errors='coerce') if real_col else 0
+    mis['Balance_Amount']  = pd.to_numeric(df[bal_col], errors='coerce') if bal_col else 0
+    mis['Plant_Capacity']  = pd.to_numeric(df[cap_col], errors='coerce') if cap_col else 0
+    mis['Offtaker']        = df[oft_col].astype(str) if oft_col else ''
+
+    # ── Clean rows ──
+    mis = mis[mis['SPV'].str.len() > 3]
+    mis = mis[~mis['SPV'].str.contains('Company|SPV Ident|company name|identification', case=False, na=False)]
+    mis = mis.dropna(subset=['Invoice_Month2'])
+    mis = mis[mis['Billed_Units'].notna() & (mis['Billed_Units'] > 0)].copy()
+
+    # ── Derived columns ──
+    mis['PLF'] = (mis['Yield'] / 24 * 100).clip(0, 40)
     mis['Days'] = mis['Invoice_Month2'].dt.days_in_month.fillna(30)
+
     def fy(dt):
         if pd.isnull(dt): return None
-        return f'FY {dt.year}-{str(dt.year+1)[-2:]}' if dt.month>=4 else f'FY {dt.year-1}-{str(dt.year)[-2:]}'
+        return f'FY {dt.year}-{str(dt.year+1)[-2:]}' if dt.month >= 4 else f'FY {dt.year-1}-{str(dt.year)[-2:]}'
     mis['FY'] = mis['Invoice_Month2'].apply(fy)
 
-    port_raw = pd.read_excel(file, sheet_name='Portfolio Details', header=2)
-    port_raw.columns = [str(c) for c in port_raw.columns]
-    cr = {port_raw.columns[1]:'SPV_ID',port_raw.columns[2]:'SPV',port_raw.columns[3]:'DC_Capacity_KWp',
-          port_raw.columns[4]:'Customer_Name',port_raw.columns[5]:'Plant_Name',port_raw.columns[6]:'Offtaker_Name',
-          port_raw.columns[7]:'Region',port_raw.columns[8]:'State',port_raw.columns[9]:'Project_Cost',
-          port_raw.columns[10]:'Credit_Rating',port_raw.columns[11]:'Rating_Agency',port_raw.columns[12]:'Rating_Category',
-          port_raw.columns[13]:'Tariff',port_raw.columns[14]:'Annual_Escalation',port_raw.columns[15]:'PPA_Term',
-          port_raw.columns[16]:'COD',port_raw.columns[17]:'PPA_End_Date',port_raw.columns[18]:'Balance_PPA_Tenor'}
-    port = port_raw.rename(columns=cr)
-    port = port.dropna(subset=['SPV'])
-    port = port[port['SPV'].astype(str).str.len()>3].copy()
-    for c in ['DC_Capacity_KWp','Tariff','Balance_PPA_Tenor','Project_Cost']:
-        port[c] = pd.to_numeric(port[c], errors='coerce')
-    port['COD'] = pd.to_datetime(port['COD'], errors='coerce')
+    # ── Portfolio Details ──
+    port = pd.DataFrame({'SPV':[], 'DC_Capacity_KWp':[], 'Region':[], 'State':[],
+                         'Tariff':[], 'Rating_Category':[], 'COD':[], 'Balance_PPA_Tenor':[]})
+
+    if 'Portfolio Details' in xl.sheet_names:
+        try:
+            pr = pd.read_excel(file, sheet_name='Portfolio Details', header=None)
+            # Find header row
+            ph = 0
+            for i in range(10):
+                rv = [str(v).strip().lower() for v in pr.iloc[i,:].tolist()]
+                if 'spv' in rv and any('capacity' in v for v in rv):
+                    ph = i; break
+            port_raw = pd.read_excel(file, sheet_name='Portfolio Details', header=ph)
+            port_raw.columns = [str(c).strip().replace('\n',' ') for c in port_raw.columns]
+
+            p_spv  = find_col(port_raw, [['spv']]) or find_col(port_raw, [['generation mis sheet']])
+            p_cap  = find_col(port_raw, [['dc','capacity']]) or find_col(port_raw, [['capacity']])
+            p_reg  = find_col(port_raw, [['region']])
+            p_st   = find_col(port_raw, [['state']])
+            p_tar  = find_col(port_raw, [['tariff']])
+            p_rat  = find_col(port_raw, [['rating category']]) or find_col(port_raw, [['rating']])
+            p_cod  = find_col(port_raw, [['cod']])
+            p_ten  = find_col(port_raw, [['balance ppa']]) or find_col(port_raw, [['balance']])
+
+            port = pd.DataFrame()
+            port['SPV']              = port_raw[p_spv].astype(str) if p_spv else ''
+            port['DC_Capacity_KWp']  = pd.to_numeric(port_raw[p_cap], errors='coerce') if p_cap else 0
+            port['Region']           = port_raw[p_reg] if p_reg else ''
+            port['State']            = port_raw[p_st] if p_st else ''
+            port['Tariff']           = pd.to_numeric(port_raw[p_tar], errors='coerce') if p_tar else 0
+            port['Rating_Category']  = port_raw[p_rat] if p_rat else ''
+            port['COD']              = pd.to_datetime(port_raw[p_cod], errors='coerce') if p_cod else pd.NaT
+            port['Balance_PPA_Tenor']= pd.to_numeric(port_raw[p_ten], errors='coerce') if p_ten else 0
+
+            port = port[port['SPV'].str.len() > 3]
+            port = port[~port['SPV'].str.contains('SPV|Generation MIS|nan', case=False, na=False)]
+            port = port.dropna(subset=['DC_Capacity_KWp'])
+            port = port[port['DC_Capacity_KWp'] > 0]
+        except Exception as e:
+            st.warning(f"Portfolio Details sheet could not be fully loaded: {e}")
+
     return mis, port
+
 
 # ── SIDEBAR ──
 with st.sidebar:
@@ -556,3 +644,4 @@ elif page == "Portfolio Details":
         cap_csv = port.groupby('State')['DC_Capacity_KWp'].sum().reset_index().round(2)
         cap_csv.columns = ['State','Total DC Capacity (KWp)']
         st.download_button("⬇️ Capacity by State CSV", cap_csv.to_csv(index=False).encode('utf-8'), "capacity_by_state.csv", "text/csv", use_container_width=True)
+
