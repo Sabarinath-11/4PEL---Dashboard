@@ -55,18 +55,16 @@ def apply_layout(fig, height=300, legend_h=False, barmode=None, showlegend=True,
         fig.update_layout(coloraxis_showscale=False)
     return fig
 
-@st.cache_data
-def find_mis_sheet(xl):
-    for s in xl.sheet_names:
+def find_mis_sheet(sheet_names):
+    for s in sheet_names:
         su = s.upper().replace(' ','')
         if 'MIS' in su and 'ERP' in su:
             return s
-    for s in xl.sheet_names:
+    for s in sheet_names:
         if 'MIS' in s.upper():
             return s
-    return xl.sheet_names[0]
+    return sheet_names[0]
 
-@st.cache_data
 def find_col(df, keywords_list):
     """Find column by trying multiple keyword combos"""
     for keywords in keywords_list:
@@ -79,9 +77,10 @@ def find_col(df, keywords_list):
 @st.cache_data
 def load_all(file):
     xl = pd.ExcelFile(file)
+    sheet_names = xl.sheet_names
 
     # ── Find MIS sheet ──
-    mis_sheet = find_mis_sheet(xl)
+    mis_sheet = find_mis_sheet(sheet_names)
 
     # ── Find header row ──
     raw = pd.read_excel(file, sheet_name=mis_sheet, header=None)
@@ -137,7 +136,7 @@ def load_all(file):
     port = pd.DataFrame({'SPV':[], 'DC_Capacity_KWp':[], 'Region':[], 'State':[],
                          'Tariff':[], 'Rating_Category':[], 'COD':[], 'Balance_PPA_Tenor':[]})
 
-    if 'Portfolio Details' in xl.sheet_names:
+    if 'Portfolio Details' in sheet_names:
         try:
             pr = pd.read_excel(file, sheet_name='Portfolio Details', header=None)
             # Find header row
@@ -644,4 +643,3 @@ elif page == "Portfolio Details":
         cap_csv = port.groupby('State')['DC_Capacity_KWp'].sum().reset_index().round(2)
         cap_csv.columns = ['State','Total DC Capacity (KWp)']
         st.download_button("⬇️ Capacity by State CSV", cap_csv.to_csv(index=False).encode('utf-8'), "capacity_by_state.csv", "text/csv", use_container_width=True)
-
