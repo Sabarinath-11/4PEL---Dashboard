@@ -4,13 +4,10 @@ import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
 import warnings
+from sqlalchemy import create_engine
 warnings.filterwarnings('ignore')
 
-# ── Optional: install pyodbc if not present ──
-try:
-    import pyodbc
-except ImportError:
-    import pyodbc
+
 
 # ══════════════════════════════════════════════════════════════
 # SQL SERVER CONNECTION CONFIG
