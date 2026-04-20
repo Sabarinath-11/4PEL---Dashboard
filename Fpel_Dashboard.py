@@ -192,97 +192,62 @@ def apply_layout(fig, height=300, legend_h=False, barmode=None, showlegend=True,
 # ══════════════════════════════════════════════════════════════
 # SQL DATA LOADER
 # ══════════════════════════════════════════════════════════════
-@st.cache_data(ttl=300, show_spinner=False)  # cache 5 min
-def load_from_sql(password: str):
-    """
-    Connect to SQL Server, fetch the staging table, and return:
-      - mis   : operational MIS dataframe
-      - port  : portfolio details dataframe (subset of columns)
-    All renaming via COLUMN_MAP is applied here so downstream
-    logic never needs to know the raw SQL column names.
-    """
-    conn_str = (
-        f"DRIVER={{ODBC Driver 17 for SQL Server}};"
-        f"SERVER={SQL_CONFIG['server']};"
-        f"DATABASE={SQL_CONFIG['database']};"
-        f"UID={SQL_CONFIG['username']};"
-        f"PWD={password};"
-        "TrustServerCertificate=yes;"
-        "Encrypt=yes;"
-        "Connection Timeout=30;"
-    )
-    try:
-        conn = pyodbc.connect(conn_str)
-    except Exception:
-        # Fallback: try without encryption (older SQL Server)
-        conn_str_plain = conn_str.replace("Encrypt=yes;", "Encrypt=no;")
-        conn = pyodbc.connect(conn_str_plain)
+from sqlalchemy import create_engine
 
-    query = f"SELECT * FROM [{SQL_CONFIG['table']}]"
-    raw = pd.read_sql(query, conn)
-    conn.close()
+@st.cache_data(ttl=300, show_spinner=False)
+def load_from_sql():
+    server = st.secrets["DB_SERVER"]
+    database = st.secrets["DB_NAME"]
+    username = st.secrets["DB_USER"]
+    password = st.secrets["DB_PASSWORD"]
 
-    # ── Apply column rename map (only rename columns that exist) ──
+    connection_string = f"mssql+pymssql://{username}:{password}@{server}/{database}"
+
+    engine = create_engine(connection_string)
+
+    query = "SELECT * FROM FPELReceivableDaysSalesofPowerStaging"
+
+    raw = pd.read_sql(query, engine)
+
     rename = {k: v for k, v in COLUMN_MAP.items() if k in raw.columns}
     raw = raw.rename(columns=rename)
 
-    # ── Build MIS dataframe ──
     def _col(name, default=None):
         return raw[name] if name in raw.columns else default
 
     mis = pd.DataFrame()
-    mis["SPV"]             = _col("SPV", "Unknown").astype(str)
-    mis["Invoice_Month2"]  = pd.to_datetime(_col("Invoice_Month2"), errors="coerce")
-    mis["Billed_Units"]    = pd.to_numeric(_col("Billed_Units", 0),    errors="coerce").fillna(0)
-    mis["Yield"]           = pd.to_numeric(_col("Yield", 0),           errors="coerce").fillna(0)
-    mis["Billed_Amount"]   = pd.to_numeric(_col("Billed_Amount", 0),   errors="coerce").fillna(0)
+    mis["SPV"] = _col("SPV", "Unknown").astype(str)
+    mis["Invoice_Month2"] = pd.to_datetime(_col("Invoice_Month2"), errors="coerce")
+    mis["Billed_Units"] = pd.to_numeric(_col("Billed_Units", 0), errors="coerce").fillna(0)
+    mis["Yield"] = pd.to_numeric(_col("Yield", 0), errors="coerce").fillna(0)
+    mis["Billed_Amount"] = pd.to_numeric(_col("Billed_Amount", 0), errors="coerce").fillna(0)
     mis["Realized_Amount"] = pd.to_numeric(_col("Realized_Amount", 0), errors="coerce").fillna(0)
-    mis["Balance_Amount"]  = pd.to_numeric(_col("Balance_Amount", 0),  errors="coerce").fillna(0)
-    mis["Plant_Capacity"]  = pd.to_numeric(_col("Plant_Capacity", 0),  errors="coerce").fillna(0)
-    mis["Offtaker"]        = _col("Offtaker", "").astype(str)
+    mis["Balance_Amount"] = pd.to_numeric(_col("Balance_Amount", 0), errors="coerce").fillna(0)
+    mis["Plant_Capacity"] = pd.to_numeric(_col("Plant_Capacity", 0), errors="coerce").fillna(0)
+    mis["Offtaker"] = _col("Offtaker", "").astype(str)
 
-    # ── Clean rows ──
-    mis = mis[mis["SPV"].str.len() > 2]
-    mis = mis[~mis["SPV"].str.lower().isin(["nan", "none", "null"])]
-    mis = mis.dropna(subset=["Invoice_Month2"])
-    mis = mis[mis["Billed_Units"] > 0].copy()
+    mis = mis.dropna(subset=["Invoice_Month2"]).copy()
 
-    # ── Derived columns ──
     mis["PLF"] = (mis["Yield"] / 24 * 100).clip(0, 40)
-    mis["PLF"] = mis["PLF"].replace(0, np.nan)
     mis["Days"] = mis["Invoice_Month2"].dt.days_in_month.fillna(30)
 
     def fy(dt):
-        if pd.isnull(dt): return None
+        if pd.isnull(dt):
+            return None
         return f"FY {dt.year}-{str(dt.year+1)[-2:]}" if dt.month >= 4 else f"FY {dt.year-1}-{str(dt.year)[-2:]}"
+
     mis["FY"] = mis["Invoice_Month2"].apply(fy)
 
-    # ── Build Portfolio dataframe from same raw table ──
     port = pd.DataFrame()
     if "DC_Capacity_KWp" in raw.columns:
-        port["SPV"]               = _col("SPV", "").astype(str)
-        port["DC_Capacity_KWp"]   = pd.to_numeric(_col("DC_Capacity_KWp", 0), errors="coerce")
-        port["Region"]            = _col("Region", "")
-        port["State"]             = _col("State", "")
-        port["Tariff"]            = pd.to_numeric(_col("Tariff", 0), errors="coerce")
-        port["Rating_Category"]   = _col("Rating_Category", "")
-        port["COD"]               = pd.to_datetime(_col("COD"), errors="coerce")
-        port["Balance_PPA_Tenor"] = pd.to_numeric(_col("Balance_PPA_Tenor", 0), errors="coerce")
-        port = port[port["SPV"].str.len() > 2]
-        port = port.dropna(subset=["DC_Capacity_KWp"])
-        port = port[port["DC_Capacity_KWp"] > 0].drop_duplicates(subset=["SPV"])
+        port["SPV"] = _col("SPV", "").astype(str)
+        port["DC_Capacity_KWp"] = pd.to_numeric(_col("DC_Capacity_KWp", 0), errors="coerce")
     else:
-        # Fallback: derive basic portfolio from MIS aggregation
-        port = (
-            mis.groupby("SPV")
-               .agg(DC_Capacity_KWp=("Plant_Capacity", "max"))
-               .reset_index()
-        )
-        for col in ["Region","State","Tariff","Rating_Category","COD","Balance_PPA_Tenor"]:
-            port[col] = np.nan
+        port = mis.groupby("SPV").agg(
+            DC_Capacity_KWp=("Plant_Capacity", "max")
+        ).reset_index()
 
     return mis, port
-
 
 # ══════════════════════════════════════════════════════════════
 # SIDEBAR
@@ -365,7 +330,7 @@ if not db_password:
 # ── Load data ──
 with st.spinner("Connecting to SQL Server…"):
     try:
-        mis, port = load_from_sql(db_password)
+        mis, port = load_from_sql()
     except Exception as e:
         st.error(f"**Database connection failed:** {e}\n\n"
                  "Check: server IP, credentials, firewall rules, and that "
