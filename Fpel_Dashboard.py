@@ -10,8 +10,6 @@ warnings.filterwarnings('ignore')
 try:
     import pyodbc
 except ImportError:
-    import subprocess, sys
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "pyodbc"])
     import pyodbc
 
 # ══════════════════════════════════════════════════════════════
